@@ -43,7 +43,7 @@ class User:
         self.cart.append(product)
 
     def checkout(self):
-        total_amount = sum(item['price'] for item in self.cart)
+        total_amount = sum(float(item.price) for item in self.cart)
         self.cart = []
         return total_amount
 
@@ -158,7 +158,7 @@ class MainApplication(tk.Frame):
         password = self.password.get()
         user = User(username, password)
         for u in users:
-            if u == user:
+            if u == user and u.password == user.password:
                 if username == "admin":
                     self.master.switch_frame(AdminPanel, u)
                 else:
