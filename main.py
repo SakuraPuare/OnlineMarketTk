@@ -87,7 +87,8 @@ async def get_product_data(keyword):
             data = scripts[1].text.strip().split('var pageData = ')[-1][:-1]
             return json.loads(data).get('result', [])
         else:
-            messagebox.showerror("错误", f"{response.status_code}, 无法获取数据")
+            messagebox.showerror(
+                "错误", f"{response.status_code}, 无法获取数据")
             return []
 
 
@@ -147,8 +148,6 @@ class MainApplication(tk.Frame):
         login_button = tk.Button(
             button_label, text="登录", command=self.login)
         login_button.pack(side="left", padx=5, pady=5)
-        self.login_frame.bind_all(
-            "<Return>", lambda event: login_button.invoke())
 
         register_button = tk.Button(
             button_label, text="注册", command=self.register)
@@ -161,12 +160,12 @@ class MainApplication(tk.Frame):
         for u in users:
             if u == user:
                 if username == "admin":
-                    self.master.switch_frame(AdminPanel, user)
+                    self.master.switch_frame(AdminPanel, u)
                 else:
-                    self.master.switch_frame(UserPanel, user)
+                    self.master.switch_frame(UserPanel, u)
                 return
         else:
-            messagebox.showerror("错误", "用户名或密码错误")
+            messagebox.showerror("错误", "用户名或密码错误", parent=self)
 
     def register(self):
         username = self.username.get().strip()
@@ -174,16 +173,16 @@ class MainApplication(tk.Frame):
 
         # sanity check
         if not username or not password:
-            messagebox.showerror("错误", "用户名或密码不能为空")
+            messagebox.showerror("错误", "用户名或密码不能为空", parent=self)
             return
         user = User(username, password)
 
         if user not in users:
             users.append(user)
             save_data()
-            messagebox.showinfo("提示", "注册成功")
+            messagebox.showinfo("提示", "注册成功", parent=self)
         else:
-            messagebox.showerror("错误", "用户名已存在")
+            messagebox.showerror("错误", "用户名已存在", parent=self)
 
 
 class UserPanel(tk.Frame):
@@ -193,8 +192,7 @@ class UserPanel(tk.Frame):
         self.default_font.configure(family="思源黑体",
                                     size=FONT_SIZE)
         self.master = master
-        self.user = user
-        self.cart = users[users.index(self.user)].cart
+        self.user: User = user
         self.pack()
         self.create_widgets()
 
@@ -212,6 +210,10 @@ class UserPanel(tk.Frame):
         self.show_cart_btn = tk.Button(
             button_label, text="查看购物车", command=self.show_cart)
         self.show_cart_btn.pack(side="left", padx=5, pady=5)
+
+        self.clear_cart_btn = tk.Button(
+            button_label, text="清空购物车", command=self.clear_cart)
+        self.clear_cart_btn.pack(side="left", padx=5, pady=5)
 
         self.checkout_btn = tk.Button(
             button_label, text="结算", command=self.checkout)
@@ -246,32 +248,41 @@ class UserPanel(tk.Frame):
     def on_mousewheel(self, event):
         self.canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
+    def save_data(self):
+        users[users.index(self.user)] = self.user
+        save_data()
+
     def show_cart(self):
-        if not self.cart:
-            messagebox.showwarning("警告", "购物车为空")
+        if not self.user.cart:
+            messagebox.showwarning("警告", "购物车为空", parent=self)
             return
 
         cart_items = "\n".join(
-            [f"{item.name} - 价格: ¥{item.price}" for item in self.cart])
-        messagebox.showinfo("购物车", cart_items)
+            [f"{item.name} - 价格: ¥{item.price}" for item in self.user.cart])
+        messagebox.showinfo("购物车", cart_items, parent=self)
 
     def add_to_cart(self):
         if hasattr(self, 'selected_product') and self.selected_product:
-            self.cart.append(self.selected_product)
-            save_data()
-            messagebox.showinfo("提示", f"{self.selected_product.name} 已添加至购物车")
+            self.user.add_to_cart(self.selected_product)
+            self.save_data()
+            messagebox.showinfo(
+                "提示", f"{self.selected_product.name} 已添加至购物车", parent=self)
         else:
-            messagebox.showwarning("警告", "请选择一个商品")
+            messagebox.showwarning("警告", "请选择一个商品", parent=self)
+
+    def clear_cart(self):
+        self.user.cart.clear()
+        self.save_data()
+        messagebox.showinfo("提示", "购物车已清空", parent=self)
 
     def checkout(self):
-        if not self.cart:
-            messagebox.showwarning("警告", "购物车为空")
+        if not self.user.cart:
+            messagebox.showwarning("警告", "购物车为空", parent=self)
             return
 
-        total_amount = sum(float(item.price) for item in self.cart)
-        messagebox.showinfo("合计", f"总金额：￥{total_amount}")
-        self.cart = []
-        save_data()
+        total_amount = self.user.checkout()
+        messagebox.showinfo("合计", f"总金额：￥{total_amount}", parent=self)
+        self.save_data()
 
     def refresh_product_list(self):
         row = 0
@@ -450,7 +461,7 @@ class AdminPanel(tk.Frame):
                 messagebox.showerror(
                     "错误", f"{e}, 无法获取数据", parent=self.search_window)
         else:
-            messagebox.showerror("错误", "关键字不能为空")
+            messagebox.showerror("错误", "关键字不能为空", parent=self.search_window)
 
     def refresh_user_list(self):
         self.user_list.delete(0, tk.END)
@@ -460,7 +471,7 @@ class AdminPanel(tk.Frame):
     def create_user_window(self):
         self.user_window = tk.Toplevel(self)
         self.user_window.title("添加用户")
-        self.user_window.geometry("500x600")
+        self.user_window.geometry("500x400")
         self.user_window.protocol("WM_DELETE_WINDOW", self.close_user_window)
 
         self.username_label = tk.Label(self.user_window, text="用户名：")
@@ -487,16 +498,16 @@ class AdminPanel(tk.Frame):
         password = self.password_entry.get().strip()
         # sanity check
         if not username or not password:
-            messagebox.showerror("错误", "用户名或密码不能为空")
+            messagebox.showerror("错误", "用户名或密码不能为空", parent=self.user_window)
             return
         new_user = User(username, password)
         if new_user in users:
-            messagebox.showerror("错误", "用户名已存在")
+            messagebox.showerror("错误", "用户名已存在", parent=self.user_window)
         else:
             users.append(new_user)
             save_data()
             self.refresh_user_list()
-            messagebox.showinfo("提示", "用户已添加")
+            messagebox.showinfo("提示", "用户已添加", parent=self.user_window)
             self.close_user_window()
 
     def delete_user(self):
@@ -508,9 +519,9 @@ class AdminPanel(tk.Frame):
                 print(users)
                 save_data()
                 self.refresh_user_list()
-                messagebox.showinfo("提示", "用户已删除")
+                messagebox.showinfo("提示", "用户已删除", parent=self)
             else:
-                messagebox.showerror("错误", "不能删除管理员账号")
+                messagebox.showerror("错误", "不能删除管理员账号", parent=self)
 
     def refresh_product_list(self):
         save_data()
@@ -525,7 +536,7 @@ class AdminPanel(tk.Frame):
 
         # sanity check
         if not title or not price:
-            messagebox.showerror("错误", "标题或价格不能为空")
+            messagebox.showerror("错误", "标题或价格不能为空", parent=self)
             return
 
         image_path = filedialog.askopenfilename()
@@ -538,11 +549,11 @@ class AdminPanel(tk.Frame):
         price = float(price)
 
         if title and price and image_path:
-            new_product = {'title': title, 'price': price, 'image': image}
+            new_product = Product(title, price, image)
             products.append(new_product)
             save_data()
             self.refresh_product_list()
-            messagebox.showinfo("提示", "商品已添加")
+            messagebox.showinfo("提示", "商品已添加", parent=self)
 
     def delete_product(self):
         selection = self.product_list.curselection()
@@ -551,7 +562,7 @@ class AdminPanel(tk.Frame):
             products.remove(product_to_delete)
             save_data()
             self.refresh_product_list()
-            messagebox.showinfo("提示", "商品已删除")
+            messagebox.showinfo("提示", "商品已删除", parent=self)
 
 
 class ShoppingSystem(tk.Tk):
